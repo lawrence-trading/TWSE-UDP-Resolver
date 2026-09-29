@@ -38,7 +38,7 @@ struct Packet {
     uint8_t limit_up_limit_down;        // 1 byte, BIT MAP
     uint8_t status_note;          // 1 byte, BIT MAP
     uint64_t cumulative_volume;   // 6 bytes for format 0x23, 4 bytes for 0x06 and 0x17; PACK BCD
-    std::vector<uint32_t> prices; // Prices (each 5 bytes, PACK BCD)
+    std::vector<uint64_t> prices; // Prices (each 5 bytes, PACK BCD, undecoded, low 40 bits used)
     std::vector<uint32_t> quantities; // Quantities (each 4 bytes, PACK BCD)
 
     // BODY for format code 0x01

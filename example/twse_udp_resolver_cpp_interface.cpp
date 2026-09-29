@@ -9,7 +9,7 @@
 #include "../include/parser.h"
 
 // Helper function to print price and quantity in hex
-void print_price_quantity(const std::string& label, uint32_t price, uint32_t quantity) {
+void print_price_quantity(const std::string& label, uint64_t price, uint32_t quantity) {
     std::stringstream ss;
     ss << label << ": Price = 0x" << std::hex << price
        << ", Quantity = 0x" << quantity << std::dec;
@@ -39,7 +39,7 @@ void analyze_packet(const Packet& packet) {
     // Extract deal price and quantity
     size_t offset = 0;
     if (has_deal_price_quantity) {
-        uint32_t deal_price = packet.prices[offset];
+        uint64_t deal_price = packet.prices[offset];
         uint32_t deal_quantity = packet.quantities[offset];
         print_price_quantity("Deal", deal_price, deal_quantity);
         offset++;
@@ -47,7 +47,7 @@ void analyze_packet(const Packet& packet) {
 
     // Extract bid prices and quantities
     for (uint8_t i = 0; i < bid_count; ++i) {
-        uint32_t bid_price = packet.prices[offset];
+        uint64_t bid_price = packet.prices[offset];
         uint32_t bid_quantity = packet.quantities[offset];
         print_price_quantity("Bid " + std::to_string(i + 1), bid_price, bid_quantity);
         offset++;
@@ -55,7 +55,7 @@ void analyze_packet(const Packet& packet) {
 
     // Extract ask prices and quantities
     for (uint8_t i = 0; i < ask_count; ++i) {
-        uint32_t ask_price = packet.prices[offset];
+        uint64_t ask_price = packet.prices[offset];
         uint32_t ask_quantity = packet.quantities[offset];
         print_price_quantity("Ask " + std::to_string(i + 1), ask_price, ask_quantity);
         offset++;
@@ -63,9 +63,9 @@ void analyze_packet(const Packet& packet) {
 
     // Check if the deal price is at bid or ask
     if (has_deal_price_quantity && has_bids && has_asks) {
-        uint32_t deal_price = packet.prices[0]; // Deal price is always the first price
-        uint32_t best_bid = packet.prices[has_deal_price_quantity ? 1 : 0]; // First bid price
-        uint32_t best_ask = packet.prices[has_deal_price_quantity ? 1 + bid_count : bid_count]; // First ask price
+        uint64_t deal_price = packet.prices[0]; // Deal price is always the first price
+        uint64_t best_bid = packet.prices[has_deal_price_quantity ? 1 : 0]; // First bid price
+        uint64_t best_ask = packet.prices[has_deal_price_quantity ? 1 + bid_count : bid_count]; // First ask price
 
         if (deal_price == best_bid) {
             Logger::getInstance().log("Deal price is at bid");
