@@ -121,13 +121,17 @@ def create_packet_4():
 
     return esc_code + header + body + checksum + terminal_code
 
+def _bcd(value, nbytes):
+    """`value` as `nbytes` PACK BCD bytes, most significant byte first, zero padded."""
+    digits = f"{value:0{nbytes * 2}d}"
+    return bytes(int(digits[i]) << 4 | int(digits[i + 1]) for i in range(0, nbytes * 2, 2))
+
 def _bcd5(value):
     """A 9(5)V9(4) price as 5 PACK BCD bytes: 10 nibbles, zero padded.
 
     The value is the price in 1/10000 NTD, so 35.15 NTD is 351500.
     """
-    digits = f"{value:010d}"
-    return bytes(int(digits[i]) << 4 | int(digits[i + 1]) for i in range(0, 10, 2))
+    return _bcd(value, 5)
 
 def create_packet_format_01(business_type=0x01, stock_code=b'2330  ',
                             reference=351500, limit_up=386500, limit_down=316500,
@@ -173,10 +177,56 @@ def create_packet_format_01_AL():
                                    limit_up=0, limit_down=0, count_note=b'AL')
 
 def create_packet_format_01_big_price():
-    """12345.6789 NTD -- above what format 6 can express, since parse_body_06
-    drops the leading BCD byte. Regression guard for parse_body_01."""
+    """12345.6789 NTD, exercising the full 5-byte PACK BCD width format 1's
+    reference/limit-up/limit-down fields always carried. Regression guard for
+    parse_body_01."""
     return create_packet_format_01(stock_code=b'2454  ', reference=123456789,
                                    limit_up=123456789, limit_down=123456789)
+
+def create_packet_format_06_high_price(stock_code, deal_price, bid_price, ask_price,
+                                        cumulative_volume=100,
+                                        deal_qty=10, bid_qty=10, ask_qty=10):
+    """Format 6, one deal + one bid + one ask, each a full 9(5)V9(4) price.
+
+    All three prices are parametrized so a caller can place them at or above
+    NT$10,000, where every one of the 5 PACK BCD bytes carries a digit.
+    Prices/quantities are in 1/10000 NTD / lots.
+    """
+    esc_code = bytes([0x1B])
+    header = bytes([0x00, 0x40, 0x01, 0x06, 0x04, 0x00, 0x00, 0x00, 0x01])
+    body = (
+        stock_code
+        + b'\x09\x20\x27\x00\x00\x00'  # Match time: 09:20:27.000000
+        + b'\x92'                      # Display item: deal + 1 bid + 1 ask
+        + b'\x00'                      # Limit up/down flags: normal
+        + b'\x10'                      # Status note: continuous trading
+        + _bcd(cumulative_volume, 4)
+        + _bcd5(deal_price) + _bcd(deal_qty, 4)
+        + _bcd5(bid_price) + _bcd(bid_qty, 4)
+        + _bcd5(ask_price) + _bcd(ask_qty, 4)
+    )
+    checksum = bytes([calculate_checksum(header + body)])
+    terminal_code = b'\x0D\x0A'
+    return esc_code + header + body + checksum + terminal_code
+
+def create_packet_format_06_2059_sample():
+    """A high-priced book seen on the live feed: 2059's bid/ask sit at
+    NT$12,150.0000 / NT$12,395.0000, both above NT$10,000, where the price
+    needs all 5 BCD bytes. The deal sits at
+    the ask (a buyer lifted the offer) so the aggressor side is unambiguous."""
+    return create_packet_format_06_high_price(
+        stock_code=b'2059  ', deal_price=123_950_000,
+        bid_price=121_500_000, ask_price=123_950_000,
+    )
+
+def create_packet_format_06_20000_even():
+    """5274's bid/ask seen on the live feed: NT$19,720.0000 / exactly
+    NT$20,000.0000. The even NT$20,000.0000 ask has all-zero low 4 BCD bytes,
+    so reading fewer than 5 bytes turns it into a literal 0."""
+    return create_packet_format_06_high_price(
+        stock_code=b'5274  ', deal_price=200_000_000,
+        bid_price=197_200_000, ask_price=200_000_000,
+    )
 
 def create_packet_useless_format():
     esc_code = bytes([0x1B])
@@ -313,6 +363,7 @@ if __name__ == "__main__":
 
     packets = [
         create_packet_1(), create_packet_2(), create_packet_3(), create_packet_4(),
+        create_packet_format_06_2059_sample(), create_packet_format_06_20000_even(),
         create_packet_useless_format(), create_packet_invalid(), create_packet_format_23_OTC(), create_packet_format_23_TWSE()
     ]
     packet_index = 0

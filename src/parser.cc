@@ -355,12 +355,9 @@ bool Parser::parse_body_06(const std::vector<uint8_t>& raw_packet, Packet& packe
 
     // Parse dynamic prices and quantities (if present)
     while (offset + 9 <= raw_packet.size() - TERMINAL_CODE_SIZE - 1) {
-        // Warning: It is reasonable to discard the first byte since the stock price is likely 
-        // not to exceed 9,999.
-        uint32_t price = (raw_packet[offset + 1] << 24) |
-                         (raw_packet[offset + 2] << 16) |
-                         (raw_packet[offset + 3] << 8) |
-                         raw_packet[offset + 4];
+        // Full 5-byte PACK BCD price: the field carries prices at or above
+        // NT$10,000, so all 5 bytes are kept.
+        uint64_t price = read_bcd_bytes(raw_packet, offset, 5);
         packet.prices.push_back(price);
         offset += 5;
 
@@ -438,7 +435,7 @@ bool Parser::parse_body_23(const std::vector<uint8_t>& raw_packet, Packet& packe
         for (int i = 0; i < 5; ++i) {
             price = (price << 8) | raw_packet[offset++];
         }
-        packet.prices.push_back((uint32_t)price);
+        packet.prices.push_back(price);
 
         // Check if remaining length is enough for quantity (6 bytes)
         if (offset + 6 > raw_packet.size()) break;
